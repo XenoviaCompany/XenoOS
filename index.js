@@ -18,25 +18,23 @@ const chalk = require("chalk");
 const config = require("./config");
 const handleMessage = require("./lib/xenovia");
 const { cloneOrUpdateRepo } = require("./lib/cekUpdate");
-const {
-  mylog, warnlog, errorlog, successlog, infolog, banner
-} = require("./lib/color");
+const { mylog, warnlog, errorlog, successlog, infolog, banner } = require("./lib/color");
 
-process.on("uncaughtException", err => {
-  console.log(errorlog("💥 Uncaught Exception:"), err);
-});
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
+process.on("uncaughtException", err => console.log(errorlog("💥 Uncaught Exception:"), err));
+
+// Banner awal
 console.clear();
 console.log(banner("Xenovia AI"));
 console.log(successlog("🚀 Bot sedang dijalankan...\n"));
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+main().catch(err => console.log(errorlog("❌ Error utama:"), err));
 
-checkAndUpdate().catch(err =>
-  console.log(errorlog("❌ Gagal start bot atau update:"), err)
-);
+async function main() {
+  await checkAndUpdate();
+  await connectToWhatsApp();
+}
 
 async function checkAndUpdate() {
   if (config.AutoUpdate === "on") {
@@ -51,13 +49,11 @@ async function checkAndUpdate() {
   if (fs.existsSync(credsPath)) {
     try {
       JSON.parse(fs.readFileSync(credsPath));
-    } catch (e) {
+    } catch {
       console.log(warnlog("🧨 Deteksi sesi rusak. Menghapus dan mengulang..."));
       fs.rmSync("./sessions", { recursive: true, force: true });
     }
   }
-
-  await connectToWhatsApp();
 }
 
 async function connectToWhatsApp() {
@@ -79,105 +75,108 @@ async function connectToWhatsApp() {
 
   global.sock = sock;
 
-  // Pairing code
   if (!sock.authState.creds.registered && config.type_connection.toLowerCase() === "pairing") {
     try {
       console.log(infolog("🕓 Menyiapkan pairing code..."));
-      await delay(4000);
+      await delay(5000);
       const code = await sock.requestPairingCode(config.phone_number_bot.trim());
-      console.log(chalk.blue("🔗 PHONE NUMBER:"), chalk.yellow(config.phone_number_bot));
-      console.log(chalk.green("🔐 PAIRING CODE:"), chalk.yellow(code));
+      console.log(chalk.blue("🔗 PHONE:"), chalk.yellow(config.phone_number_bot));
+      console.log(chalk.green("🔐 CODE:"), chalk.yellow(code));
     } catch (err) {
-      const status = err?.output?.statusCode || err?.data?.statusCode || null;
+      const status = err?.output?.statusCode || err?.data?.statusCode;
       const message = err?.output?.payload?.message || err?.message || "";
-      console.log(errorlog("❌ Gagal generate pairing code:"), message);
+      console.log(errorlog("❌ Gagal pairing:"), message);
       if ([401, 428].includes(status) || message.toLowerCase().includes("closed")) {
+        fs.rmSync("./sessions", { recursive: true, force: true });
         console.log(warnlog("🛑 Pairing gagal. Reset sesi..."));
-        if (fs.existsSync("./sessions")) fs.rmSync("./sessions", { recursive: true, force: true });
-        await delay(3000);
         process.exit(1);
       }
     }
   }
 
-  sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-    if (qr && config.type_connection.toLowerCase() === "qr") {
-      console.clear();
-      console.log(banner("Xenovia AI"));
-      console.log(successlog("📲 Scan QR berikut:\n"));
-      qrcode.generate(qr, { small: true });
-    }
-
-    if (connection === "open") {
-      console.log(successlog("✅ Terhubung ke WhatsApp!"));
-      await delay(2000);
-      await sock.sendMessage(`${config.phone_number_bot}@s.whatsapp.net`, {
-        text: "✅ Bot Connected"
-      });
-    }
-
-    if (connection === "close") {
-      const boom = new Boom(lastDisconnect?.error);
-      const code = boom?.output?.statusCode || lastDisconnect?.error?.output?.statusCode;
-      const reconnect = code !== DisconnectReason.loggedOut;
-
-      const reason = {
-        [DisconnectReason.badSession]: "Sesi korup. Hapus dan login ulang.",
-        [DisconnectReason.connectionClosed]: "Koneksi tertutup.",
-        [DisconnectReason.connectionLost]: "Koneksi terputus.",
-        [DisconnectReason.connectionReplaced]: "Digantikan sesi lain.",
-        [DisconnectReason.loggedOut]: "Logout dari perangkat.",
-        [DisconnectReason.restartRequired]: "Restart diperlukan.",
-        [DisconnectReason.timedOut]: "Timeout koneksi."
-      };
-
-      console.log(errorlog(`❌ Koneksi putus: ${reason[code] || "Unknown"} (${code})`));
-
-      if (code === DisconnectReason.loggedOut || code === DisconnectReason.badSession) {
-        console.log(warnlog("🔁 Reset sesi dan coba ulang..."));
-        fs.rmSync("./sessions", { recursive: true, force: true });
-        await delay(2000);
-        return await connectToWhatsApp();
-      }
-
-      if (reconnect) {
-        console.log(warnlog("🔁 Mencoba reconnect..."));
-        await delay(2000);
-        return await connectToWhatsApp();
-      }
-    }
-  });
-
+  sock.ev.on("connection.update", update => handleConnectionUpdate(sock, update));
   sock.ev.on("creds.update", saveCreds);
-
   sock.ev.on("messages.upsert", async ({ messages }) => {
-    if (!Array.isArray(messages) || !messages[0]) return;
-    await handleMessage(sock, messages[0]);
-  });
-
-  // Permissions
-  if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
-  fs.chmodSync(sessionDir, 0o755);
-  fs.readdir(sessionDir, (err, files) => {
-    if (!err) {
-      files.forEach(file => {
-        fs.chmod(path.join(sessionDir, file), 0o644, err => {
-          if (err) console.log(warnlog("⚠️ Gagal ubah permission:", err));
-        });
-      });
+    try {
+      if (!messages?.[0]) return;
+      await handleMessage(sock, messages[0]);
+    } catch (err) {
+      console.log(errorlog("🧨 Gagal handle pesan:"), err);
     }
   });
 
-  sock.reply = (from, content, msg) =>
-    sock.sendMessage(from, { text: content }, { quoted: msg });
+  setFilePermissions(sessionDir);
 
+  sock.reply = (from, text, msg) => sock.sendMessage(from, { text }, { quoted: msg });
   sock.sendMessageFromContent = async (jid, content) =>
-    await sock.relayMessage(jid, content.message, { messageId: content.key.id });
+    sock.relayMessage(jid, content.message, { messageId: content.key.id });
 
-  // Load fitur
+  // Load fitur tambahan
   require("./lib/motiv")(sock);
   require("./lib/tagabsen")(sock);
   require("./lib/autoview")(sock);
 
+  // Graceful shutdown
+  process.on("SIGINT", async () => {
+    console.log(warnlog("🛑 Bot dimatikan..."));
+    await sock.logout();
+    process.exit(0);
+  });
+
   return sock;
+}
+
+function handleConnectionUpdate(sock, { connection, lastDisconnect, qr }) {
+  if (qr && config.type_connection.toLowerCase() === "qr") {
+    console.clear();
+    console.log(banner("Xenovia AI"));
+    console.log(successlog("📲 Scan QR berikut:\n"));
+    qrcode.generate(qr, { small: true });
+  }
+
+  if (connection === "open") {
+    console.log(successlog("✅ Terhubung ke WhatsApp!"));
+    delay(2000).then(() => {
+      sock.sendMessage(`${config.phone_number_bot}@s.whatsapp.net`, { text: "✅ Bot Connected" });
+    });
+  }
+
+  if (connection === "close") {
+    const boom = new Boom(lastDisconnect?.error);
+    const code = boom?.output?.statusCode || lastDisconnect?.error?.output?.statusCode;
+    const reason = {
+      [DisconnectReason.badSession]: "Sesi rusak",
+      [DisconnectReason.connectionClosed]: "Koneksi tertutup",
+      [DisconnectReason.connectionLost]: "Koneksi hilang",
+      [DisconnectReason.connectionReplaced]: "Sesi digantikan",
+      [DisconnectReason.loggedOut]: "Logout",
+      [DisconnectReason.restartRequired]: "Restart perlu",
+      [DisconnectReason.timedOut]: "Timeout"
+    };
+
+  //console.log(errorlog(`❌ Koneksi putus: ${reason[code] || "Unknown"} (${code})`));
+
+    if ([DisconnectReason.loggedOut, DisconnectReason.badSession].includes(code)) {
+      fs.rmSync("./sessions", { recursive: true, force: true });
+      console.log(warnlog("🔁 Reset sesi dan login ulang..."));
+      return connectToWhatsApp(); // tanpa await = biar nggak nested
+    }
+
+    console.log(warnlog("🔁 Mencoba reconnect..."));
+    return connectToWhatsApp();
+  }
+}
+
+function setFilePermissions(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.chmodSync(dir, 0o755);
+  fs.readdir(dir, (err, files) => {
+    if (!err) {
+      for (const file of files) {
+        fs.chmod(path.join(dir, file), 0o644, err => {
+          if (err) console.log(warnlog("⚠️ Gagal ubah permission:", err));
+        });
+      }
+    }
+  });
 }
