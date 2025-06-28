@@ -56,6 +56,6 @@ $ npm start
 
 * <a href="https://github.com/whiskeysockets/Baileys"><img alt="GitHub" src="https://img.shields.io/badge/baileys-%23121011.svg?&style=for-the-badge&logo=github&logoColor=white"/></a>
 
-* <a href="https://github.com/rtwone"><img alt="GitHub" src="https://img.shields.io/badge/rtwone-%23121011.svg?&style=for-the-badge&logo=github&logoColor=white"/></a>
+* <a href="https://github.com/Rezero2"><img alt="GitHub" src="https://img.shields.io/badge/rtwone-%23121011.svg?&style=for-the-badge&logo=github&logoColor=white"/></a>
 
-* <a href="https://github.com/rzkydevv"><img alt="GitHub" src="https://img.shields.io/badge/rzkydevv-%23121011.svg?&style=for-the-badge&logo=github&logoColor=white"/></a>
+* <a href="https://github.com/FeliciaFebbyutari"><img alt="GitHub" src="https://img.shields.io/badge/rzkydevv-%23121011.svg?&style=for-the-badge&logo=github&logoColor=white"/></a>
