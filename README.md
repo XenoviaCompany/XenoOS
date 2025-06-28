@@ -32,24 +32,12 @@ $ npm i
 
 $ npm start
 
-
-
-Masukan Nomer Bot di config.js
-
 ```
 
 ## NOTES
 
-* Setting Nomor Owner [`Setting`](https://github.com/FebbAdityaN/whatsbot/blob/c26fa587347cd2b9026938627b7be76eb30136ec/message/msg.js#L50)
-
-* Setting Gemini apiKey [`Setting`](https://github.com/FebbAdityaN/whatsbot/blob/c26fa587347cd2b9026938627b7be76eb30136ec/message/msg.js#L26)
-
-* Setting Imgbb apiKey [`Setting`](https://github.com/FebbAdityaN/whatsbot/blob/c26fa587347cd2b9026938627b7be76eb30136ec/message/msg.js#L267)
-
-* Get Gemini apiKey [`apiKey`](https://ai.google.dev/gemini-api/docs/api-key?hl=id)
-
-* Get Imgbb apiKey [`apiKey`](https://api.imgbb.com/)
-
+* Setting Nomor Owner [`Setting`](https://github.com/XenoviaCompany/XenoOS/blob/main/config.js)
+  
 ## LOG UPDATE
 
 ```cmd
@@ -62,7 +50,7 @@ Masukan Nomer Bot di config.js
 
 ## DONASI
 
-* DANA/GOPAY : 085770269605
+* DANA/GOPAY : -
 
 ## SPECIAL THANKS TO
 
